@@ -78,9 +78,51 @@ public class DiscordIdentityProvider extends OAuth2IdentityProvider {
         String globalName = getAsString(profile.get("global_name"));
         String display = globalName != null ? globalName : username;
 
-        context.setUsername(null); // Intentionally leave null to allow First Broker Login flow to prompt
+        // Strip trailing numbers from username
+        String cleanUsername = username;
+        String trailingNumbers = "0";
+        if (cleanUsername != null) {
+            // Extract trailing numbers
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d+)$");
+            java.util.regex.Matcher matcher = pattern.matcher(cleanUsername);
+            if (matcher.find()) {
+                trailingNumbers = matcher.group(1);
+            }
+            cleanUsername = cleanUsername.replaceAll("\\d+$", "");
+        }
+
+        // Set username to Discord username (without discriminator and trailing numbers)
+        context.setUsername(cleanUsername);
         context.setName(display);
         context.setEmail(getAsString(profile.get("email"))); // requires email scope
+
+        // Set first and last name from Discord
+        // Try to get first_name and last_name from Discord profile
+        String firstName = getAsString(profile.get("first_name"));
+        String lastName = getAsString(profile.get("last_name"));
+        
+        // If first_name is not found, use username as first name
+        if (firstName == null || firstName.isBlank()) {
+            firstName = cleanUsername;
+            lastName = trailingNumbers;
+        } else {
+            // Strip trailing numbers from first name and use them as last name
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d+)$");
+            java.util.regex.Matcher matcher = pattern.matcher(firstName);
+            String firstNameNumbers = "0";
+            if (matcher.find()) {
+                firstNameNumbers = matcher.group(1);
+            }
+            firstName = firstName.replaceAll("\\d+$", "");
+            
+            // If last_name is not found, use the numbers from first name
+            if (lastName == null || lastName.isBlank()) {
+                lastName = firstNameNumbers;
+            }
+        }
+        
+        context.setFirstName(firstName);
+        context.setLastName(lastName);
 
         // Determine if this federated identity is already linked to a local user
         RealmModel realm = session.getContext().getRealm();
