@@ -1,0 +1,3 @@
+com\holonet\keycloak\discord\DiscordIdentityProviderFactory.class
+com\holonet\keycloak\discord\DiscordIdentityProvider.class
+com\holonet\keycloak\discord\DiscordIdentityProviderConfig.class
