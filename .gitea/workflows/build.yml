@@ -42,7 +42,6 @@ jobs:
           from pathlib import Path
 
           pom_path = Path("pom.xml")
-          dist_dir = Path("dist")
           tag_name = os.environ["GITHUB_REF_NAME"]
 
           ns = {"m": "http://maven.apache.org/POM/4.0.0"}
@@ -59,18 +58,26 @@ jobs:
               print("Could not read keycloak.version from pom.xml", file=sys.stderr)
               sys.exit(1)
 
-          jar_candidates = sorted(
-              p for p in dist_dir.glob("*.jar")
-              if not p.name.endswith("-sources.jar") and not p.name.endswith("-javadoc.jar")
-          )
+          search_dirs = [Path("target"), Path("dist")]
+          jar_candidates = []
+
+          for directory in search_dirs:
+              if directory.exists():
+                  jar_candidates.extend(
+                      p for p in directory.glob("*.jar")
+                      if not p.name.endswith("-sources.jar")
+                      and not p.name.endswith("-javadoc.jar")
+                  )
+
+          jar_candidates = sorted(jar_candidates)
 
           if not jar_candidates:
-              print("No JAR found in dist/", file=sys.stderr)
+              print("No JAR found in target/ or dist/", file=sys.stderr)
               sys.exit(1)
 
           source_jar = jar_candidates[0]
           release_name = f"{artifact_id}-{tag_name}-keycloak-{keycloak_version}.jar"
-          release_path = dist_dir / release_name
+          release_path = source_jar.parent / release_name
 
           if source_jar.resolve() != release_path.resolve():
               shutil.copy2(source_jar, release_path)
