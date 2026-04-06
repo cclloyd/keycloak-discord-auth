@@ -1,0 +1,44 @@
+name: Build and Release JAR
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build JAR
+        run: mvn -B -DskipTests package
+
+      - name: Find built JAR
+        id: jar
+        shell: bash
+        run: |
+          JAR_PATH=$(find dist -maxdepth 1 -type f -name "*.jar" | head -n 1)
+          if [ -z "$JAR_PATH" ]; then
+            echo "No JAR found in dist/"
+            exit 1
+          fi
+          echo "jar_path=$JAR_PATH" >> "$GITHUB_OUTPUT"
+          echo "jar_name=$(basename "$JAR_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.jar.outputs.jar_path }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

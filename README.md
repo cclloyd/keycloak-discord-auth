@@ -1,6 +1,6 @@
 # Keycloak Discord Identity Provider (Guild-Gated)
 
-Custom Keycloak SPI identity provider for Discord (Keycloak 26.4.1). Implements guild-gated first login:
+Custom Keycloak SPI identity provider for Discord (Keycloak). Implements guild-gated first login:
 
 - Existing users already linked to Discord can log in regardless of guild membership.
 - Otherwise you can specify a discord guild that the user must be a member of to be allowed to log in.
@@ -9,7 +9,7 @@ Custom Keycloak SPI identity provider for Discord (Keycloak 26.4.1). Implements 
 Do not run here if you don't want to; user/build system can build it. Standard Maven build:
 
 ```bash
-mvn -f arcadia/ecumene/keycloak/providers/custom-discord/pom.xml -DskipTests package
+mvn -f pom.xml -DskipTests package
 ```
 
 Copy the built JAR to your Keycloak providers dir, e.g.:
@@ -18,7 +18,7 @@ Copy the built JAR to your Keycloak providers dir, e.g.:
 - Or directly into Keycloak `providers/` directory (if running Quarkus distribution)
 
 ## Keycloak Compatibility
-- Tested against imports/APIs for Keycloak `26.4.1` via Maven `provided` deps:
+- Tested against imports/APIs for Keycloak version pinned in [pom.xml](./pom.xml) via Maven `provided` deps:
   - `org.keycloak:keycloak-server-spi`
   - `org.keycloak:keycloak-server-spi-private`
   - `org.keycloak:keycloak-services`
