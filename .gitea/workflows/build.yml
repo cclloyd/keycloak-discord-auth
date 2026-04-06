@@ -20,6 +20,15 @@ jobs:
           java-version: "17"
           cache: maven
 
+      - name: Install Maven
+        shell: bash
+        run: |
+          if ! command -v mvn >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y maven
+          fi
+          mvn -version
+
       - name: Build JAR
         shell: bash
         run: mvn -B -DskipTests "-Dbuild.channel=${GITHUB_REF_NAME}" package
