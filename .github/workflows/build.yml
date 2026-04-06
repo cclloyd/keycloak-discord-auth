@@ -33,20 +33,34 @@ jobs:
 
       - name: Build JAR
         shell: bash
-        run: mvn -B -DskipTests "-Dbuild.channel=${GITHUB_REF_NAME}" package
+        run: |
+          mvn -B -DskipTests "-Dbuild.channel=${GITHUB_REF_NAME}" package
+          pwd
+          ls -l target
 
       - name: Compute release JAR path
         id: jar
         shell: bash
         run: |
+          SEARCH_DIRS=()
+
+          [ -d target ] && SEARCH_DIRS+=(target)
+          [ -d dist ] && SEARCH_DIRS+=(dist)
+
+          if [ ${#SEARCH_DIRS[@]} -eq 0 ]; then
+            echo "Neither target/ nor dist/ exists"
+            exit 1
+          fi
+
           ACTUAL_JAR=$(
-            find target dist -maxdepth 1 -type f -name "*.jar" \
+            find "${SEARCH_DIRS[@]}" -maxdepth 1 -type f -name "*.jar" \
               ! -name "*-sources.jar" \
-              ! -name "*-javadoc.jar" 2>/dev/null | sort | head -n 1
+              ! -name "*-javadoc.jar" \
+              | sort | head -n 1
           )
 
           if [ -z "$ACTUAL_JAR" ]; then
-            echo "No JAR found in target/ or dist/"
+            echo "No JAR found in ${SEARCH_DIRS[*]}"
             exit 1
           fi
 
