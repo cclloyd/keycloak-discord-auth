@@ -39,12 +39,14 @@ jobs:
         id: jar
         shell: bash
         run: |
-          ACTUAL_JAR=$(find dist -maxdepth 1 -type f -name "*.jar" \
-            ! -name "*-sources.jar" \
-            ! -name "*-javadoc.jar" | sort | head -n 1)
+          ACTUAL_JAR=$(
+            find target dist -maxdepth 1 -type f -name "*.jar" \
+              ! -name "*-sources.jar" \
+              ! -name "*-javadoc.jar" 2>/dev/null | sort | head -n 1
+          )
 
           if [ -z "$ACTUAL_JAR" ]; then
-            echo "No JAR found in dist/"
+            echo "No JAR found in target/ or dist/"
             exit 1
           fi
 
