@@ -28,15 +28,15 @@ jobs:
 
       - name: Build JAR
         shell: bash
-        run: mvn -B -DskipTests package
+        run: mvn -B -DskipTests -Dgit.tag="${GITHUB_REF_NAME}" package
 
       - name: Find built JAR
         id: jar
         shell: bash
         run: |
-          JAR_PATH=$(find target -maxdepth 1 -type f -name "*.jar" | head -n 1)
+          JAR_PATH=$(find dist -maxdepth 1 -type f -name "*.jar" | head -n 1)
           if [ -z "$JAR_PATH" ]; then
-            echo "No JAR found in target/"
+            echo "No JAR found in dist/"
             exit 1
           fi
 
