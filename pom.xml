@@ -17,11 +17,9 @@
         <keycloak.version>26.5.7</keycloak.version>
         <project.build.directory>${project.basedir}/dist</project.build.directory>
         <maven.build.timestamp.format>yyyyMMdd-HHmmss</maven.build.timestamp.format>
-        <build.channel>dev</build.channel>
     </properties>
 
     <build>
-        <finalName>${project.artifactId}-${build.channel}-keycloak-${keycloak.version}-${maven.build.timestamp}</finalName>
         <plugins>
             <plugin>
                 <groupId>io.github.git-commit-id</groupId>
@@ -67,6 +65,30 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>dev-build</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <finalName>${project.artifactId}-dev-keycloak-${keycloak.version}-${maven.build.timestamp}</finalName>
+            </build>
+        </profile>
+
+        <profile>
+            <id>tagged-build</id>
+            <activation>
+                <property>
+                    <name>build.channel</name>
+                </property>
+            </activation>
+            <build>
+                <finalName>${project.artifactId}-${build.channel}-keycloak-${keycloak.version}</finalName>
+            </build>
+        </profile>
+    </profiles>
 
     <dependencies>
         <dependency>
