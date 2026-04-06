@@ -37,7 +37,6 @@ jobs:
         id: jar
         shell: bash
         run: |
-          JAR_NAME="custom-discord-${GITHUB_REF_NAME}-keycloak-26.5.7-$(date +%Y%m%d)-" # placeholder for debug only
           ACTUAL_JAR=$(find target -maxdepth 1 -type f -name "*.jar" \
             ! -name "*-sources.jar" \
             ! -name "*-javadoc.jar" | sort | head -n 1)
@@ -52,70 +51,14 @@ jobs:
 
           echo "Found JAR: ${ACTUAL_JAR}"
 
-      - name: Create or reuse Gitea release
-        id: release
-        shell: bash
-        env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
-        run: |
-          if [ -z "$GITEA_TOKEN" ]; then
-            echo "Missing secret: GITEA_TOKEN"
-            exit 1
-          fi
-
-          API_URL="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases"
-          TAG_NAME="${GITHUB_REF_NAME}"
-
-          echo "Creating release for tag: $TAG_NAME"
-
-          HTTP_STATUS=$(curl -sS -o release.json -w "%{http_code}" \
-            -X POST \
-            -H "Authorization: token ${GITEA_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "${API_URL}" \
-            -d "{
-              \"tag_name\": \"${TAG_NAME}\",
-              \"name\": \"${TAG_NAME}\",
-              \"draft\": false,
-              \"prerelease\": false
-            }")
-
-          if [ "$HTTP_STATUS" = "201" ]; then
-            echo "Release created."
-          elif [ "$HTTP_STATUS" = "409" ]; then
-            echo "Release already exists, fetching it."
-            curl -sS \
-              -H "Authorization: token ${GITEA_TOKEN}" \
-              "${API_URL}/tags/${TAG_NAME}" \
-              -o release.json
-          else
-            echo "Failed to create release. HTTP status: $HTTP_STATUS"
-            cat release.json
-            exit 1
-          fi
-
-          RELEASE_ID=$(python3 -c "import json; print(json.load(open('release.json'))['id'])")
-          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
-
-      - name: Upload JAR to release
-        shell: bash
-        env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
-        run: |
-          RELEASE_ID="${{ steps.release.outputs.release_id }}"
-          JAR_PATH="${{ steps.jar.outputs.jar_path }}"
-          JAR_NAME="${{ steps.jar.outputs.jar_name }}"
-
-          API_URL="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=${JAR_NAME}"
-
-          echo "Uploading ${JAR_NAME} to release ${RELEASE_ID}"
-
-          curl -sS \
-            -X POST \
-            -H "Authorization: token ${GITEA_TOKEN}" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary @"${JAR_PATH}" \
-            "${API_URL}" \
-            -o upload.json
-
-          echo "Upload completed."
+      - name: Publish Gitea release
+        uses: https://gitea.com/actions/gitea-release-action@v1
+        with:
+          api_key: ${{ secrets.GITEA_TOKEN }}
+          server_url: ${{ github.server_url }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          prerelease: false
+          draft: false
+          files: |
+            ${{ steps.jar.outputs.jar_path }}
