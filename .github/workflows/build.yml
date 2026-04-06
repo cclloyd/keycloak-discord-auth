@@ -42,31 +42,16 @@ jobs:
         id: jar
         shell: bash
         run: |
-          SEARCH_DIRS=()
-
-          [ -d target ] && SEARCH_DIRS+=(target)
-          [ -d dist ] && SEARCH_DIRS+=(dist)
-
-          if [ ${#SEARCH_DIRS[@]} -eq 0 ]; then
-            echo "Neither target/ nor dist/ exists"
-            exit 1
-          fi
-
-          ACTUAL_JAR=$(
-            find "${SEARCH_DIRS[@]}" -maxdepth 1 -type f -name "*.jar" \
-              ! -name "*-sources.jar" \
-              ! -name "*-javadoc.jar" \
-              | sort | head -n 1
-          )
-
+          ACTUAL_JAR=$(ls target/*.jar | grep -vE '(-sources|-javadoc)\.jar$' | head -n 1)
+      
           if [ -z "$ACTUAL_JAR" ]; then
-            echo "No JAR found in ${SEARCH_DIRS[*]}"
+            echo "No JAR found in target/"
             exit 1
           fi
-
+      
           echo "jar_path=${ACTUAL_JAR}" >> "$GITHUB_OUTPUT"
           echo "jar_name=$(basename "$ACTUAL_JAR")" >> "$GITHUB_OUTPUT"
-
+      
           echo "Found JAR: ${ACTUAL_JAR}"
 
       - name: Create GitHub release
