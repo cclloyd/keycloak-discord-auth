@@ -1,0 +1,169 @@
+name: Update Keycloak Version
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  update-keycloak:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITEA_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Detect latest Keycloak version from Quay
+        id: detect
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          import sys
+          import urllib.request
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          pom_path = Path("pom.xml")
+          ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+
+          try:
+              root = ET.parse(pom_path).getroot()
+          except Exception as exc:
+              print(f"Failed to parse pom.xml: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          current = root.findtext("m:properties/m:keycloak.version", namespaces=ns)
+          if not current:
+              print("Could not find <keycloak.version> in pom.xml", file=sys.stderr)
+              sys.exit(1)
+
+          url = "https://quay.io/v2/keycloak/keycloak/tags/list?n=1000"
+          try:
+              with urllib.request.urlopen(url, timeout=30) as response:
+                  payload = json.load(response)
+          except Exception as exc:
+              print(f"Failed to read tags from Quay: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          semver_pattern = re.compile(r"^\d+\.\d+\.\d+$")
+          tags = payload.get("tags", [])
+          stable_versions = []
+
+          for tag in tags:
+              if semver_pattern.fullmatch(tag):
+                  stable_versions.append(tuple(map(int, tag.split("."))))
+
+          if not stable_versions:
+              print("No stable x.y.z Keycloak tags found on Quay", file=sys.stderr)
+              sys.exit(1)
+
+          latest_tuple = max(stable_versions)
+          latest = ".".join(map(str, latest_tuple))
+
+          output_path = Path(__import__("os").environ["GITHUB_OUTPUT"])
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"current_version={current}\n")
+              fh.write(f"latest_version={latest}\n")
+              fh.write(f"needs_update={'true' if latest != current else 'false'}\n")
+
+          print(f"Current Keycloak version: {current}")
+          print(f"Latest Keycloak version:  {latest}")
+          PY
+
+      - name: Stop if no update is needed
+        if: steps.detect.outputs.needs_update != 'true'
+        shell: bash
+        run: |
+          echo "pom.xml already uses the latest Keycloak version: ${{ steps.detect.outputs.current_version }}"
+
+      - name: Update pom.xml keycloak.version
+        if: steps.detect.outputs.needs_update == 'true'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          pom_path = Path("pom.xml")
+          new_version = "${{ steps.detect.outputs.latest_version }}"
+          ns_uri = "http://maven.apache.org/POM/4.0.0"
+          ns = {"m": ns_uri}
+
+          ET.register_namespace("", ns_uri)
+          tree = ET.parse(pom_path)
+          root = tree.getroot()
+
+          node = root.find("m:properties/m:keycloak.version", ns)
+          if node is None:
+              print("Could not find <keycloak.version> in pom.xml", file=sys.stderr)
+              sys.exit(1)
+
+          node.text = new_version
+          tree.write(pom_path, encoding="utf-8", xml_declaration=False)
+
+          print(f"Updated pom.xml to Keycloak {new_version}")
+          PY
+
+      - name: Compute next repo tag
+        if: steps.detect.outputs.needs_update == 'true'
+        id: version_tag
+        shell: bash
+        run: |
+          latest_tag="$(git tag -l 'v*' --sort=-version:refname | head -n 1)"
+
+          if [ -z "$latest_tag" ]; then
+            next_tag="v1.0.0"
+          else
+            base="${latest_tag#v}"
+            IFS='.' read -r major minor patch <<EOF
+          $base
+          EOF
+
+            if [ -z "$major" ] || [ -z "$minor" ] || [ -z "$patch" ]; then
+              echo "Latest tag '$latest_tag' is not in vX.Y.Z format"
+              exit 1
+            fi
+
+            next_patch=$((patch + 1))
+            next_tag="v${major}.${minor}.${next_patch}"
+          fi
+
+          echo "next_tag=${next_tag}" >> "$GITHUB_OUTPUT"
+          echo "Next repo tag: ${next_tag}"
+
+      - name: Commit and tag update
+        if: steps.detect.outputs.needs_update == 'true'
+        shell: bash
+        run: |
+          git config user.name "gitea-actions[bot]"
+          git config user.email "gitea-actions[bot]@users.noreply.local"
+
+          git add pom.xml
+          git commit -m "chore: bump Keycloak to ${{ steps.detect.outputs.latest_version }}"
+          git tag "${{ steps.version_tag.outputs.next_tag }}"
+
+      - name: Push commit and tag
+        if: steps.detect.outputs.needs_update == 'true'
+        shell: bash
+        run: |
+          branch="${GITHUB_REF_NAME}"
+          git push origin "HEAD:${branch}"
+          git push origin "${{ steps.version_tag.outputs.next_tag }}"
+
+      - name: Summary
+        if: steps.detect.outputs.needs_update == 'true'
+        shell: bash
+        run: |
+          echo "Updated Keycloak from ${{ steps.detect.outputs.current_version }} to ${{ steps.detect.outputs.latest_version }}"
+          echo "Created and pushed tag ${{ steps.version_tag.outputs.next_tag }}"
