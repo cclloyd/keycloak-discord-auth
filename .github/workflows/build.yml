@@ -1,0 +1,103 @@
+name: Build and Release JAR
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Maven
+        shell: bash
+        run: mvn -version
+
+      - name: Build JAR
+        shell: bash
+        run: mvn -B -DskipTests package
+
+      - name: Prepare release JAR name
+        id: jar
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import shutil
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          pom_path = Path("pom.xml")
+          tag_name = os.environ["GITHUB_REF_NAME"]
+
+          ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+          root = ET.parse(pom_path).getroot()
+
+          artifact_id = root.findtext("m:artifactId", namespaces=ns)
+          keycloak_version = root.findtext("m:properties/m:keycloak.version", namespaces=ns)
+
+          if not artifact_id:
+              print("Could not read artifactId from pom.xml", file=sys.stderr)
+              sys.exit(1)
+
+          if not keycloak_version:
+              print("Could not read keycloak.version from pom.xml", file=sys.stderr)
+              sys.exit(1)
+
+          search_dirs = [Path("target"), Path("dist")]
+          jar_candidates = []
+
+          for directory in search_dirs:
+              if directory.exists():
+                  jar_candidates.extend(
+                      p for p in directory.glob("*.jar")
+                      if not p.name.endswith("-sources.jar")
+                      and not p.name.endswith("-javadoc.jar")
+                  )
+
+          jar_candidates = sorted(jar_candidates)
+
+          if not jar_candidates:
+              print("No JAR found in target/ or dist/", file=sys.stderr)
+              sys.exit(1)
+
+          source_jar = jar_candidates[0]
+          release_name = f"{artifact_id}-{tag_name}-keycloak-{keycloak_version}.jar"
+          release_path = source_jar.parent / release_name
+
+          if source_jar.resolve() != release_path.resolve():
+              shutil.copy2(source_jar, release_path)
+
+          github_output = Path(os.environ["GITHUB_OUTPUT"])
+          with github_output.open("a", encoding="utf-8") as fh:
+              fh.write(f"jar_path={release_path.as_posix()}\n")
+              fh.write(f"jar_name={release_name}\n")
+
+          print(f"Found JAR: {source_jar}")
+          print(f"Release JAR: {release_path}")
+          PY
+
+      - name: Create GitHub release and upload JAR
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: ${{ steps.jar.outputs.jar_path }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
