@@ -18,7 +18,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: maven
+
+      - name: Install Maven
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y maven
+          mvn -version
 
       - name: Build JAR
         run: mvn -B -DskipTests package
