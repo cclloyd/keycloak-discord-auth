@@ -5,7 +5,7 @@
 
     <groupId>com.holonet.keycloak</groupId>
     <artifactId>custom-discord</artifactId>
-    <version>dev</version>
+    <version>1.0.0-SNAPSHOT</version>
     <name>Keycloak Discord Identity Provider + Guild Gate</name>
     <description>Custom Keycloak SPI: Discord Identity Provider with guild membership gating for first login.</description>
     <packaging>jar</packaging>
@@ -15,12 +15,34 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <keycloak.version>26.5.7</keycloak.version>
-        <git.tag>dev</git.tag>
         <project.build.directory>${project.basedir}/dist</project.build.directory>
     </properties>
 
+    <dependencies>
+        <!-- Keycloak SPIs (provided by server at runtime) -->
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-server-spi</artifactId>
+            <version>${keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-server-spi-private</artifactId>
+            <version>${keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-services</artifactId>
+            <version>${keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Optional: JSON, HTTP, etc. (Keycloak already brings Jackson and HTTP libs) -->
+    </dependencies>
+
     <build>
-        <finalName>${project.artifactId}-${git.tag}-keycloak-${keycloak.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
